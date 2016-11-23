@@ -32,6 +32,8 @@ static NSString *countDay = @"9";//max 16 day, default 9 day
 - (void)viewDidLoad {
     [super viewDidLoad];
     
+    //Попытка залить проект на Git
+    
     self.userManager = [ITUserDefaultManager userManager];
     
 }
