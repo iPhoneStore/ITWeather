@@ -8,6 +8,8 @@
 
 #import "ITMenuViewController.h"
 #import "ITServerManager.h"
+#import "ITUserDefaultManager.h"
+#import "ITCoreLocation.h"
 
 @interface ITMenuViewController ()
 
@@ -33,27 +35,29 @@
 - (void)viewWillAppear:(BOOL)animated{
     
     [super viewWillAppear:YES];
-    /*
-    UIImageView* imageView = [[UIImageView alloc] initWithFrame:self.tableView.bounds];
-    
-    imageView.image = [UIImage imageNamed:@"Start-Background.jpg"];
-    
-    [self.tableView addSubview:imageView];
-    */
     
     self.navigationController.view.backgroundColor =
     [UIColor colorWithPatternImage:[UIImage imageNamed:@"Background.jpg"]];
     self.tableView.backgroundColor = [UIColor clearColor];
     
-    self.cityTextField.text = [[ITServerManager manager] defaultCity];
+    self.cityTextField.text = [[ITUserDefaultManager userManager] defaultCity];
     
-    if ([[[ITServerManager manager] units] isEqualToString:@"metric"]){
+    self.gpsSwitch.selected = YES;
+    
+    if (((CGFloat)[ITUserDefaultManager userManager].coordLatitude == 0.0) & ((CGFloat)[ITUserDefaultManager userManager].coordLongitude == 0.0)){
+        self.gpsSwitch.on = NO;
+    }else{
+        self.gpsSwitch.on = YES;
+    }
+    
+    
+    if ([[[ITUserDefaultManager userManager] units] isEqualToString:@"metric"]){
         self.unitsSegment.selectedSegmentIndex=metric;
     }else{
         self.unitsSegment.selectedSegmentIndex=imperial;
     }
     
-    if ([[[ITServerManager manager] lang] isEqualToString:@"ru"]){
+    if ([[[ITUserDefaultManager userManager] lang] isEqualToString:@"ru"]){
         self.langSegment.selectedSegmentIndex = RU;
     }else{
         self.langSegment.selectedSegmentIndex = ENG;
@@ -79,7 +83,7 @@
         unit = @"imperial";
     }
     
-    [[ITServerManager manager] setUnits:unit];
+    [[ITUserDefaultManager userManager] setUnits:unit];
 }
 
 - (IBAction)actionLang:(UISegmentedControl *)sender {
@@ -89,20 +93,31 @@
     if (sender.selectedSegmentIndex == RU){
         lang = @"ru";
     }else{
-        lang = @"";
+        lang = @"en";
     }
     
-    [[ITServerManager manager] setLang:lang];
+    [[ITUserDefaultManager userManager] setLang:lang];
 }
 
 - (IBAction)actionCityTextField:(UITextField *)sender {
     
-    [[ITServerManager manager] setDefaultCity:[NSString stringWithFormat:@"%@",sender.text]];
+    [[ITUserDefaultManager userManager] setDefaultCity:[NSString stringWithFormat:@"%@",sender.text]];
 }
 
 - (IBAction)actionGPS:(UISwitch *)sender {
     
-    //найти по GPS нахождение пользователя и установить город по умолчанию.
+    if (sender.isOn){
+        
+        ITCoreLocation* coreLocation = [[ITCoreLocation alloc] init];
+        
+        CLLocationCoordinate2D location = [coreLocation findCurrentLocation];
+        
+        [[ITUserDefaultManager userManager] setCoordLatitude:location.latitude];
+        [[ITUserDefaultManager userManager] setCoordLongitude:location.longitude];
+    }else{
+        [[ITUserDefaultManager userManager] setCoordLatitude:0];
+        [[ITUserDefaultManager userManager] setCoordLongitude:0];
+    }
     
 }
 @end

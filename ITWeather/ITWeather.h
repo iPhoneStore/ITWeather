@@ -13,12 +13,12 @@
 
 @property (strong, nonatomic) NSString* city;
 @property (strong, nonatomic) NSString* weatherCondition;
-@property (strong, nonatomic) NSString* temperature;
+@property (assign, nonatomic) CGFloat temperature;
 @property (strong, nonatomic) NSString* iconName;
 @property (strong, nonatomic) UIImage* icon;
 
-@property (strong, nonatomic) NSString* minTemperature;
-@property (strong, nonatomic) NSString* maxTemperature;
+@property (assign, nonatomic) CGFloat minTemperature;
+@property (assign, nonatomic) CGFloat maxTemperature;
 @property (strong, nonatomic) NSDate* date;
 
 - (instancetype)initWithObject:(NSDictionary*) response;

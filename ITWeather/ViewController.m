@@ -7,9 +7,11 @@
 //
 
 #import "ViewController.h"
-#import "ITServerManager.h"
-#import "ITWeatherCell.h"
 #import "ITMenuViewController.h"
+#import "ITWeatherCell.h"
+
+#import "ITServerManager.h"
+#import "ITUserDefaultManager.h"
 
 #import "ITWeather.h"
 
@@ -18,6 +20,8 @@
 
 @property (strong, nonatomic) ITWeather* weatherNow;
 @property (strong, nonatomic) NSArray* weatherArray;
+
+@property (strong, nonatomic) ITUserDefaultManager* userManager;
 
 @end
 
@@ -28,9 +32,8 @@ static NSString *countDay = @"9";//max 16 day, default 9 day
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    self.defaultCityName = [[ITServerManager manager] defaultCity];
+    self.userManager = [ITUserDefaultManager userManager];
     
-    [self getWeather:self.defaultCityName];//Получить погоду за сегодня и countDay
 }
 
 -(void)viewWillAppear:(BOOL)animated{
@@ -38,9 +41,26 @@ static NSString *countDay = @"9";//max 16 day, default 9 day
     
     [self.navigationController setNavigationBarHidden:YES animated:NO];
     
-    self.defaultCityName = [[ITServerManager manager] defaultCity];
+    NSTimeInterval timeInterval = [[NSDate date] timeIntervalSinceDate:[self.userManager lastUpdate]];
     
-    [self getWeather:self.defaultCityName];//Получить погоду за сегодня и countDay
+    NSLog(@"Update? %@", [self.userManager updateSetting]?@"Yes":@"No");
+    NSLog(@"TimeInterval: %f", timeInterval);
+    
+    if ((timeInterval<60*60) & ![self.userManager updateSetting]){
+    
+        if (self.weatherArray == nil){
+            
+            [self setWeatherWithOffInternet:[self.userManager defaultCity]];//получить погоду из кэша
+            
+        }
+        
+    }else{
+        
+        [self.userManager setUpdateSetting:NO];
+        
+        [self getWeather:[self.userManager defaultCity]];//Получить из интернета погоду за сегодня и countDay
+        
+    }
 }
 
 
@@ -51,15 +71,86 @@ static NSString *countDay = @"9";//max 16 day, default 9 day
 
 - (void) getWeather:(NSString*) city{
     
-    [self setValueWeatherNow:city];//получить погоду на сейчас
+    [[ITServerManager manager] checkInternet:^(BOOL statusInternet) {
+        if (statusInternet){
+            
+            NSLog(@"coordLatitude: %f, coordLongitude: %f",self.userManager.coordLatitude,self.userManager.coordLongitude);
+
+            if (((CGFloat)self.userManager.coordLatitude == 0.0) & ((CGFloat)self.userManager.coordLongitude == 0.0)){
+                
+                [self setWeatherWithOnInternet:city];
+                
+            }else{
+                
+                CLLocationCoordinate2D coordinate = CLLocationCoordinate2DMake(self.userManager.coordLatitude, self.userManager.coordLongitude);
+                
+                [self setWeatherWithOnInternerAndGPS:coordinate];
+            }
+            
+        } else {
+            
+            [self setWeatherWithOffInternet:city];
+        }
+    }];
+}
+
+- (void) setWeatherWithOnInternerAndGPS:(CLLocationCoordinate2D) coord{
     
+    [[ITServerManager manager] getWeatherWithGPS:coord successBlock:^(ITWeather *weather) {
+        
+        [self setValueWeatherNow:weather];//получить погоду на сейчас
+        
+        [self.userManager saveWeatherNow:weather];//Сохранить полученую погоду в UserDefault
+        
+        
+    } failureBlock:^(NSError *error) {
+        
+    }];
+    
+    //получить погоду для таблицы за countDay(default 9)
+    [[ITServerManager manager] getWeatherWithGPS:coord
+                                        countDay:countDay
+                                    successBlock:^(NSArray* weatherArray) {
+                                        
+                                        self.weatherArray = weatherArray;
+                                        
+                                        [self.userManager saveWeatherWeek:weatherArray];//Сохранить полученую погоду в UserDefault
+                                        
+                                        [self.tableView reloadData];
+                                        
+                                    }
+                                    failureBlock:^(NSError *error) {
+                                        
+                                    }];
+    
+    
+}
+
+
+- (void) setWeatherWithOnInternet:(NSString*) city{
+    
+    [[ITServerManager manager] getWeatherForCity:city successBlock:^(ITWeather *weather) {
+        
+        [self setValueWeatherNow:weather];//получить погоду на сейчас
+        
+        [self.userManager saveWeatherNow:weather];//Сохранить полученую погоду в UserDefault
+        
+        
+    } failureBlock:^(NSError *error) {
+        
+    }];
     
     //получить погоду для таблицы за countDay(default 9)
     [[ITServerManager manager] getWeatherForCity:city
                                         countDay:countDay
                                     successBlock:^(NSArray* weatherArray) {
+                                        
                                         self.weatherArray = weatherArray;
+                                        
+                                        [self.userManager saveWeatherWeek:weatherArray];//Сохранить полученую погоду в UserDefault
+                                        
                                         [self.tableView reloadData];
+                                        
                                     }
                                     failureBlock:^(NSError *error) {
                                         
@@ -67,24 +158,34 @@ static NSString *countDay = @"9";//max 16 day, default 9 day
     
 }
 
-- (void) setValueWeatherNow:(NSString*) city{
+- (void) setWeatherWithOffInternet:(NSString*) city{
     
-    [[ITServerManager manager] getWeatherForCity:city successBlock:^(ITWeather *weather) {
+    ITWeather* weather = [self.userManager readWeatherNow:city];
+    
+    if(weather != nil){
         
-        self.weatherNow = weather;
+        [self setValueWeatherNow:weather];
         
-        self.cityName.text = weather.city;
-        self.weatherCondition.text = weather.weatherCondition;
+        self.weatherArray = [self.userManager readWeatherWeek:city];
         
-        if ([[[ITServerManager manager] units] isEqualToString:@"metric"]){
-            self.temperature.text = [weather.temperature stringByAppendingString:@"°C"];
-        }else{
-            self.temperature.text = [weather.temperature stringByAppendingString:@"F"];
-        }
+        [self.tableView reloadData];
         
-    } failureBlock:^(NSError *error) {
-        
-    }];
+    }
+
+}
+
+- (void) setValueWeatherNow:(ITWeather*) weather{
+    
+    self.weatherNow = weather;
+    
+    self.cityName.text = weather.city;
+    self.weatherCondition.text = weather.weatherCondition;
+    
+    if ([[self.userManager units] isEqualToString:@"metric"]){
+        self.temperature.text = [[NSString stringWithFormat:@"%1.1f",weather.temperature] stringByAppendingString:@"°C"];
+    }else{
+        self.temperature.text = [[NSString stringWithFormat:@"%1.1f",weather.temperature] stringByAppendingString:@"F"];
+    }
 }
 
 #pragma mark - Action
@@ -109,8 +210,8 @@ static NSString *countDay = @"9";//max 16 day, default 9 day
     
     cell.nameDay.text = [dateFormatter stringFromDate:weather.date];
     
-    cell.minTemperature.text = [NSString stringWithFormat:@"%1.f",weather.minTemperature.doubleValue];
-    cell.maxTemperature.text = [NSString stringWithFormat:@"%1.f",weather.maxTemperature.doubleValue];
+    cell.minTemperature.text = [NSString stringWithFormat:@"%1.f",weather.minTemperature];
+    cell.maxTemperature.text = [NSString stringWithFormat:@"%1.f",weather.maxTemperature];
     
     [[ITServerManager manager] getIcon:weather.iconName successBlock:^(NSData *imageData) {
         

@@ -7,18 +7,26 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <CoreLocation/CoreLocation.h>
 
 @class ITWeather;
 
 @interface ITServerManager : NSObject
 
-@property(strong, nonatomic) NSString* lang;
-@property(strong, nonatomic) NSString* units;
-@property(strong, nonatomic) NSString* defaultCity;
-
 + (instancetype)manager;
 
--(void) getWeatherForCity:(NSString*) city
+- (void) checkInternet:(void(^)(BOOL statusInternet)) success;
+
+-(void) getWeatherWithGPS:(CLLocationCoordinate2D) coordinate
+                    successBlock:(void(^)(ITWeather* weather)) success
+                    failureBlock:(void(^)(NSError* error)) failure;
+
+- (void) getWeatherWithGPS:(CLLocationCoordinate2D) coordinate
+                  countDay:(NSString*) countDay
+              successBlock:(void(^)(NSArray* weatherArray)) success
+              failureBlock:(void(^)(NSError* error)) failure;
+
+- (void) getWeatherForCity:(NSString*) city
          successBlock:(void(^)(ITWeather* weather)) success
               failureBlock:(void(^)(NSError* error)) failure;
 

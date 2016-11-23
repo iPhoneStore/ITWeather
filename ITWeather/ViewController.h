@@ -15,7 +15,5 @@
 @property (weak, nonatomic) IBOutlet UILabel *temperature;
 @property (weak, nonatomic) IBOutlet UITableView *tableView;
 
-@property (strong, nonatomic) NSString* defaultCityName;
-
 @end
 

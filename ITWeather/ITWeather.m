@@ -19,7 +19,7 @@
         self.city = [response objectForKey:@"name"];
         self.weatherCondition = [[[response objectForKey:@"weather"] firstObject] objectForKey:@"description"];
         self.iconName = [[[[response objectForKey:@"weather"] firstObject] objectForKey:@"icon"] stringByAppendingString:@".png"];
-        self.temperature = [NSString stringWithFormat:@"%1.1f",[[[response objectForKey:@"main"] objectForKey:@"temp"] doubleValue]];
+        self.temperature = [[[response objectForKey:@"main"] objectForKey:@"temp"] floatValue];
         
     }
     return self;
@@ -31,8 +31,8 @@
     if (self) {
         
         self.iconName = [[[[response objectForKey:@"weather"] firstObject] objectForKey:@"icon"] stringByAppendingString:@".png"];
-        self.minTemperature = [[response objectForKey:@"temp"] objectForKey:@"min"];
-        self.maxTemperature = [[response objectForKey:@"temp"] objectForKey:@"max"];
+        self.minTemperature = [[[response objectForKey:@"temp"] objectForKey:@"min"] floatValue];
+        self.maxTemperature = [[[response objectForKey:@"temp"] objectForKey:@"max"] floatValue];
         self.date = [NSDate dateWithTimeIntervalSince1970:[[response objectForKey:@"dt"] doubleValue]];
         
     }

@@ -7,7 +7,9 @@
 //
 
 #import "ITServerManager.h"
+
 #import "AFNetWorking.h"
+#import "ITUserDefaultManager.h"
 
 #import "ITWeather.h"
 
@@ -42,32 +44,61 @@ const static NSString* baseURL = @"http://api.openweathermap.org/data/2.5/";
     if (self) {
         AFHTTPSessionManager* sessionManager = [[AFHTTPSessionManager alloc] init];
         _sessinManager = sessionManager;
-        _units = @"metric";
-        _lang = @"ru";
-        _defaultCity = @"Minsk";
     }
     return self;
 }
 
--(void) getWeatherForCity:(NSString*) city
+- (void) checkInternet:(void(^)(BOOL statusInternet)) success{
+    
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
+    
+    [[AFNetworkReachabilityManager sharedManager] setReachabilityStatusChangeBlock:^(AFNetworkReachabilityStatus status) {
+        
+        BOOL statusInternet =  NO;
+        
+        if (![AFStringFromNetworkReachabilityStatus(status) isEqualToString:@"Not Reachable"]){
+            statusInternet = YES;
+        }
+        
+        if (success){
+            [[AFNetworkReachabilityManager sharedManager] stopMonitoring];
+            [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+            success(statusInternet);
+        }
+    }];
+    
+    [[AFNetworkReachabilityManager sharedManager] startMonitoring];
+    
+}
+
+#pragma mark - GetWeatherForGPS
+
+-(void) getWeatherWithGPS:(CLLocationCoordinate2D) coordinate
              successBlock:(void(^)(ITWeather* weather)) success
              failureBlock:(void(^)(NSError* error)) failure{
+    
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
     
     NSString* url = [baseURL stringByAppendingString:@"weather?"];
     
     NSDictionary* param = [[NSDictionary alloc] initWithObjectsAndKeys:
                            appID,@"APPID",
-                           self.lang, @"lang",
-                           city,@"q",
-                           self.units,@"units",nil];
+                           [[ITUserDefaultManager userManager] lang], @"lang",
+                           [[ITUserDefaultManager userManager] units],@"units",
+                           @(coordinate.latitude),@"lat",
+                           @(coordinate.longitude),@"lon",nil];
     
     [self.sessinManager GET:url
                  parameters:param
                    progress:nil
                     success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
                         
+                        [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+                        
                         ITWeather* weather = [[ITWeather alloc] initWithObject:responseObject];
-                       
+                        
+                        [[ITUserDefaultManager userManager] setDefaultCity:weather.city];
+                        
                         [self getIcon:weather.iconName successBlock:^(NSData *imageData) {
                             
                             weather.icon = [UIImage imageWithData:imageData];
@@ -81,28 +112,35 @@ const static NSString* baseURL = @"http://api.openweathermap.org/data/2.5/";
                         }];
                     }
                     failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+                        
+                        [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
                         NSLog(@"Error : %@", [error localizedDescription]);
                     }];
 }
 
-- (void) getWeatherForCity:(NSString*) city
+- (void) getWeatherWithGPS:(CLLocationCoordinate2D) coordinate
                   countDay:(NSString*) countDay
-             successBlock:(void(^)(NSArray* weatherArray)) success
+              successBlock:(void(^)(NSArray* weatherArray)) success
               failureBlock:(void(^)(NSError* error)) failure{
+    
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
     
     NSString* url = [baseURL stringByAppendingString:@"forecast/daily?"];
     
     NSDictionary* param = [[NSDictionary alloc] initWithObjectsAndKeys:
                            appID,@"APPID",
-                           self.lang, @"lang",
-                           city,@"q",
-                           self.units,@"units",
-                           countDay,@"cnt",nil];
+                           [[ITUserDefaultManager userManager] lang], @"lang",
+                           [[ITUserDefaultManager userManager] units],@"units",
+                           countDay,@"cnt",
+                           @(coordinate.latitude),@"lat",
+                           @(coordinate.longitude),@"lon",nil];
     
     [self.sessinManager GET:url
                  parameters:param
                    progress:nil
                     success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+                        
+                        [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
                         
                         NSArray* arrayWeather = [responseObject objectForKey:@"list"];
                         
@@ -125,6 +163,103 @@ const static NSString* baseURL = @"http://api.openweathermap.org/data/2.5/";
                         
                     }
                     failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+                        
+                        [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+                        NSLog(@"Error : %@", [error localizedDescription]);
+                    }];
+}
+
+
+#pragma mark - GetWeatherForCity
+
+-(void) getWeatherForCity:(NSString*) city
+             successBlock:(void(^)(ITWeather* weather)) success
+             failureBlock:(void(^)(NSError* error)) failure{
+    
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
+    
+    NSString* url = [baseURL stringByAppendingString:@"weather?"];
+    
+    NSDictionary* param = [[NSDictionary alloc] initWithObjectsAndKeys:
+                           appID,@"APPID",
+                           [[ITUserDefaultManager userManager] lang], @"lang",
+                           city,@"q",
+                           [[ITUserDefaultManager userManager] units],@"units",nil];
+    
+    [self.sessinManager GET:url
+                 parameters:param
+                   progress:nil
+                    success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+                        
+                        [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+                        
+                        ITWeather* weather = [[ITWeather alloc] initWithObject:responseObject];
+                       
+                        [self getIcon:weather.iconName successBlock:^(NSData *imageData) {
+                            
+                            weather.icon = [UIImage imageWithData:imageData];
+                            
+                            if(success){
+                                success(weather);
+                            }
+                            
+                        } failureBlock:^(NSError *error) {
+                            
+                        }];
+                    }
+                    failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+                        
+                        [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+                        NSLog(@"Error : %@", [error localizedDescription]);
+                    }];
+}
+
+- (void) getWeatherForCity:(NSString*) city
+                  countDay:(NSString*) countDay
+             successBlock:(void(^)(NSArray* weatherArray)) success
+              failureBlock:(void(^)(NSError* error)) failure{
+    
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
+    
+    NSString* url = [baseURL stringByAppendingString:@"forecast/daily?"];
+    
+    NSDictionary* param = [[NSDictionary alloc] initWithObjectsAndKeys:
+                           appID,@"APPID",
+                           [[ITUserDefaultManager userManager] lang], @"lang",
+                           city,@"q",
+                           [[ITUserDefaultManager userManager] units],@"units",
+                           countDay,@"cnt",nil];
+    
+    [self.sessinManager GET:url
+                 parameters:param
+                   progress:nil
+                    success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+                        
+                        [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+                        
+                        NSArray* arrayWeather = [responseObject objectForKey:@"list"];
+                        
+                        NSMutableArray* resultWeatherArray = [NSMutableArray array];
+                        
+                        for (NSDictionary *dict in arrayWeather){
+                            
+                            ITWeather* weather = [[ITWeather alloc] initShortWeatherWithObject:dict];
+                            
+                            [resultWeatherArray addObject:weather];
+                        }
+                        
+                        if ([resultWeatherArray count]>0){
+                            [resultWeatherArray removeObjectAtIndex:0];
+                        }
+                        
+                        if (success){
+                            success(resultWeatherArray);
+                        }
+                        
+                    }
+                    failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+                        
+                        [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
                         NSLog(@"Error : %@", [error localizedDescription]);
                     }];
 }
@@ -132,6 +267,8 @@ const static NSString* baseURL = @"http://api.openweathermap.org/data/2.5/";
 -(void) getIcon:(NSString*) nameIcon
    successBlock:(void(^)(NSData* imageData)) success
    failureBlock:(void(^)(NSError* error)) failure{
+    
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
 
     NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration defaultSessionConfiguration];
     AFURLSessionManager *manager = [[AFURLSessionManager alloc] initWithSessionConfiguration:configuration];
@@ -151,6 +288,8 @@ const static NSString* baseURL = @"http://api.openweathermap.org/data/2.5/";
         return [documentsDirectoryURL URLByAppendingPathComponent:[response suggestedFilename]];
                                                                   }
                                                             completionHandler:^(NSURLResponse *response, NSURL *filePath, NSError *error) {
+                                                                
+                                                                [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
                                                                 
                                                                 if (success){
                                                                     success([NSData dataWithContentsOfURL:filePath]);
